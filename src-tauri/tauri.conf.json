@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "manipula-db",
+  "productName": "ManipulaDB",
   "version": "0.1.0",
   "identifier": "com.mac.manipula-db",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "manipula-db",
-        "width": 800,
-        "height": 600
+        "title": "ManipulaDB",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500
       }
     ],
     "security": {

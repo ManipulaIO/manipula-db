@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    manipula_db_scaffold_lib::run()
+    manipula_db_lib::run()
 }
