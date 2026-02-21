@@ -1,4 +1,5 @@
 import { useRef, useMemo, useState } from "react";
+import { X, Copy, Check, ArrowUp } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,9 +21,23 @@ const ROW_HEIGHT = 28;
 export function DataTable({ result }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [copied, setCopied] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(
+  const rowNumberColumn = useMemo<ColumnDef<Record<string, unknown>>>(
+    () => ({
+      id: "__row_num__",
+      header: "#",
+      size: 52,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span style={{ color: "var(--text-muted)" }}>{row.index + 1}</span>
+      ),
+    }),
+    []
+  );
+
+  const dataColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
     () =>
       result.columns.map((col) => ({
         accessorKey: col,
@@ -43,6 +58,11 @@ export function DataTable({ result }: Props) {
     [result.columns]
   );
 
+  const columns = useMemo(
+    () => [rowNumberColumn, ...dataColumns],
+    [rowNumberColumn, dataColumns]
+  );
+
   const table = useReactTable({
     data: result.rows as Record<string, unknown>[],
     columns,
@@ -55,6 +75,23 @@ export function DataTable({ result }: Props) {
   });
 
   const { rows } = table.getRowModel();
+
+  const copyAsText = async () => {
+    const headers = result.columns.join("\t");
+    const body = rows
+      .map((row) =>
+        result.columns
+          .map((col) => {
+            const v = row.original[col];
+            return v === null || v === undefined ? "" : String(v);
+          })
+          .join("\t")
+      )
+      .join("\n");
+    await navigator.clipboard.writeText(headers + "\n" + body);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -93,18 +130,44 @@ export function DataTable({ result }: Props) {
         className="flex items-center gap-2 px-3 py-1.5 shrink-0"
         style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <input
-          type="text"
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          placeholder="Filter results…"
-          className="w-48 px-2 py-0.5 rounded text-xs outline-none"
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Filter results…"
+            className="w-48 px-2 py-0.5 rounded text-xs outline-none"
+            style={{
+              background: "var(--bg-tertiary)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border)",
+              paddingRight: globalFilter ? "1.25rem" : undefined,
+            }}
+          />
+          {globalFilter && (
+            <button
+              onClick={() => setGlobalFilter("")}
+              className="absolute right-1.5 flex items-center justify-center"
+              style={{ color: "var(--text-muted)" }}
+              title="Clear filter"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={copyAsText}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs"
           style={{
-            background: "var(--bg-tertiary)",
-            color: "var(--text-primary)",
+            background: copied ? "var(--bg-tertiary)" : "transparent",
+            color: copied ? "var(--success)" : "var(--text-muted)",
             border: "1px solid var(--border)",
           }}
-        />
+          title="Copy visible rows as tab-separated values"
+        >
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? "Copied" : "Copy"}
+        </button>
         <span
           className="text-xs ml-auto"
           style={{ color: "var(--text-muted)" }}
@@ -144,23 +207,34 @@ export function DataTable({ result }: Props) {
                     className="text-left px-3 text-xs font-medium select-none"
                     style={{
                       height: 32,
-                      color: "var(--text-secondary)",
+                      color: header.id === "__row_num__" ? "var(--text-muted)" : "var(--text-secondary)",
                       borderRight: "1px solid var(--border)",
                       borderBottom: "1px solid var(--border)",
                       cursor: header.column.getCanSort() ? "pointer" : "default",
                       whiteSpace: "nowrap",
                       width: header.getSize(),
+                      textAlign: header.id === "__row_num__" ? "right" : "left",
                     }}
                   >
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
                     )}
-                    {header.column.getIsSorted() === "asc"
-                      ? " ↑"
-                      : header.column.getIsSorted() === "desc"
-                      ? " ↓"
-                      : ""}
+                    {header.column.getIsSorted() && (
+                      <ArrowUp
+                        size={10}
+                        style={{
+                          display: "inline-block",
+                          marginLeft: 4,
+                          verticalAlign: "middle",
+                          flexShrink: 0,
+                          transform:
+                            header.column.getIsSorted() === "desc"
+                              ? "rotate(180deg)"
+                              : "none",
+                        }}
+                      />
+                    )}
                   </th>
                 ))}
               </tr>
@@ -194,13 +268,14 @@ export function DataTable({ result }: Props) {
                       style={{
                         borderRight: "1px solid var(--border)",
                         borderBottom: "1px solid var(--border)",
-                        maxWidth: 300,
+                        maxWidth: cell.column.id === "__row_num__" ? 52 : 300,
                         height: ROW_HEIGHT,
                         verticalAlign: "middle",
                         color: "var(--text-primary)",
+                        textAlign: cell.column.id === "__row_num__" ? "right" : "left",
                       }}
                       title={
-                        cell.getValue() != null
+                        cell.column.id !== "__row_num__" && cell.getValue() != null
                           ? String(cell.getValue())
                           : undefined
                       }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { api } from "../../lib/invoke";
 import { useConnectionStore } from "../../store/connectionStore";
 import type { DbConnectionConfig } from "../../types";
@@ -15,8 +16,22 @@ const DEFAULT_PORTS: Record<Driver, number> = {
   sqlite: 0,
 };
 
+const DRIVER_META: Record<Driver, { label: string }> = {
+  postgres: { label: "PostgreSQL" },
+  mysql: { label: "MySQL" },
+  sqlite: { label: "SQLite" },
+};
+
 export function NewConnectionModal({ onClose }: Props) {
   const { saveConnection } = useConnectionStore();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   const [driver, setDriver] = useState<Driver>("postgres");
   const [name, setName] = useState("");
@@ -83,6 +98,7 @@ export function NewConnectionModal({ onClose }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: "rgba(0,0,0,0.6)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="w-[480px] rounded shadow-xl flex flex-col"
@@ -101,10 +117,10 @@ export function NewConnectionModal({ onClose }: Props) {
           </span>
           <button
             onClick={onClose}
-            className="text-lg leading-none"
+            className="flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--bg-hover)]"
             style={{ color: "var(--text-muted)" }}
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
 
@@ -116,13 +132,13 @@ export function NewConnectionModal({ onClose }: Props) {
               <button
                 key={d}
                 onClick={() => handleDriverChange(d)}
-                className="px-4 py-1.5 rounded text-sm font-medium transition-colors"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded text-sm font-medium transition-colors"
                 style={{
                   background: driver === d ? "var(--accent)" : "var(--bg-secondary)",
                   color: driver === d ? "#fff" : "var(--text-secondary)",
                 }}
               >
-                {d === "postgres" ? "PostgreSQL" : d === "mysql" ? "MySQL" : "SQLite"}
+                {DRIVER_META[d].label}
               </button>
             ))}
           </div>

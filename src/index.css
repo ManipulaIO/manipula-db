@@ -70,7 +70,19 @@ body,
   cursor: row-resize;
   height: 4px;
   flex-shrink: 0;
+  transition: background 0.15s;
 }
 .resize-handle:hover {
+  background: var(--accent-light);
+}
+.resize-handle-col {
+  background: var(--border);
+  cursor: col-resize;
+  width: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.resize-handle-col:hover,
+.resize-handle-col.is-dragging {
   background: var(--accent-light);
 }

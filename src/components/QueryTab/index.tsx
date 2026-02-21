@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
+import { Play, Loader2 } from "lucide-react";
 import { DataTable } from "../DataTable";
 import { api } from "../../lib/invoke";
 import { useTabStore } from "../../store/tabStore";
@@ -87,7 +88,12 @@ export function QueryTab({ tab }: Props) {
           }}
           title="Run query (⌘+Enter)"
         >
-          {tab.isLoading ? "Running…" : "▶  Run"}
+          {tab.isLoading ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Play size={11} />
+          )}
+          {tab.isLoading ? "Running…" : "Run"}
         </button>
         <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
           ⌘+Enter to run
@@ -122,11 +128,20 @@ export function QueryTab({ tab }: Props) {
       {/* Results */}
       <div className="flex-1 overflow-hidden">
         {tab.error ? (
-          <div
-            className="p-4 text-sm mono"
-            style={{ color: "var(--error)", whiteSpace: "pre-wrap" }}
-          >
-            {tab.error}
+          <div className="p-4 overflow-auto h-full">
+            <div
+              className="p-3 rounded text-xs mono"
+              style={{
+                background: "rgba(244, 135, 113, 0.08)",
+                border: "1px solid var(--error)",
+                color: "var(--error)",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.6,
+              }}
+            >
+              <span className="font-semibold not-mono" style={{ fontFamily: "inherit" }}>Error  </span>
+              {tab.error}
+            </div>
           </div>
         ) : tab.result ? (
           <DataTable result={tab.result} />

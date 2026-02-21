@@ -1,10 +1,43 @@
 import { useState } from "react";
+import {
+  Plus,
+  ChevronRight,
+  Table2,
+  Eye,
+  Loader2,
+} from "lucide-react";
 import { useConnectionStore } from "../../store/connectionStore";
 import { useTabStore } from "../../store/tabStore";
 import type { DbConnectionConfig } from "../../types";
 
 interface Props {
   onNewConnection: () => void;
+}
+
+const DRIVER_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  postgres: { label: "PG",  color: "#60a5fa", bg: "rgba(96,165,250,0.15)" },
+  mysql:    { label: "MY",  color: "#fb923c", bg: "rgba(251,146,60,0.15)"  },
+  sqlite:   { label: "SQ",  color: "#4ade80", bg: "rgba(74,222,128,0.15)" },
+};
+
+function DriverBadge({ driver }: { driver: string }) {
+  const m = DRIVER_BADGE[driver] ?? { label: "DB", color: "var(--text-muted)", bg: "var(--bg-tertiary)" };
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        color: m.color,
+        background: m.bg,
+        padding: "1px 4px",
+        borderRadius: 3,
+        flexShrink: 0,
+      }}
+    >
+      {m.label}
+    </span>
+  );
 }
 
 export function Sidebar({ onNewConnection }: Props) {
@@ -21,11 +54,13 @@ export function Sidebar({ onNewConnection }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [passwordPrompt, setPasswordPrompt] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [passwordInput, setPasswordInput] = useState("");
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -54,6 +89,7 @@ export function Sidebar({ onNewConnection }: Props) {
       toggleExpand(conn.id);
       return;
     }
+    setConnectError(null);
     setPasswordPrompt({ id: conn.id, name: conn.name });
     setPasswordInput("");
   };
@@ -61,16 +97,23 @@ export function Sidebar({ onNewConnection }: Props) {
   const submitPassword = async () => {
     if (!passwordPrompt) return;
     setConnectingId(passwordPrompt.id);
+    setConnectError(null);
     try {
       await connectTo(passwordPrompt.id, passwordInput);
       setExpandedIds((prev) => new Set([...prev, passwordPrompt.id]));
-    } catch (e) {
-      alert(`Connection failed: ${e}`);
-    } finally {
-      setConnectingId(null);
       setPasswordPrompt(null);
       setPasswordInput("");
+    } catch (e) {
+      setConnectError(String(e));
+    } finally {
+      setConnectingId(null);
     }
+  };
+
+  const dismissPasswordPrompt = () => {
+    setPasswordPrompt(null);
+    setPasswordInput("");
+    setConnectError(null);
   };
 
   const handleDisconnect = async (id: string) => {
@@ -99,19 +142,6 @@ export function Sidebar({ onNewConnection }: Props) {
     setContextMenu({ x: e.clientX, y: e.clientY, conn });
   };
 
-  const driverIcon = (driver: string) => {
-    switch (driver) {
-      case "postgres":
-        return "🐘";
-      case "mysql":
-        return "🐬";
-      case "sqlite":
-        return "📁";
-      default:
-        return "🗄️";
-    }
-  };
-
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
@@ -129,10 +159,10 @@ export function Sidebar({ onNewConnection }: Props) {
         <button
           onClick={onNewConnection}
           title="New connection"
-          className="text-base leading-none px-1"
+          className="flex items-center justify-center w-5 h-5 rounded hover:bg-[var(--bg-hover)]"
           style={{ color: "var(--accent-light)" }}
         >
-          +
+          <Plus size={14} />
         </button>
       </div>
 
@@ -167,13 +197,15 @@ export function Sidebar({ onNewConnection }: Props) {
               <div
                 className="flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none"
                 style={{
-                  background: expanded ? "var(--bg-hover)" : "transparent",
+                  background: expanded || hoveredId === conn.id ? "var(--bg-hover)" : "transparent",
                   color: "var(--text-primary)",
                 }}
                 onClick={() => handleConnect(conn)}
                 onContextMenu={(e) => handleContextMenu(e, conn)}
+                onMouseEnter={() => setHoveredId(conn.id)}
+                onMouseLeave={() => setHoveredId(null)}
               >
-                <span className="text-sm">{driverIcon(conn.driver)}</span>
+                <DriverBadge driver={conn.driver} />
                 <span className="flex-1 truncate" style={{ fontSize: 13 }}>{conn.name}</span>
                 {connected && (
                   <span
@@ -183,17 +215,22 @@ export function Sidebar({ onNewConnection }: Props) {
                   />
                 )}
                 {isConnecting && (
-                  <span className="text-xs animate-pulse" style={{ color: "var(--text-muted)" }}>
-                    …
-                  </span>
+                  <Loader2
+                    size={12}
+                    className="animate-spin shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 )}
                 {connected && (
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {expanded ? "▾" : "▸"}
-                  </span>
+                  <ChevronRight
+                    size={12}
+                    style={{
+                      color: "var(--text-muted)",
+                      flexShrink: 0,
+                      transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 0.15s ease",
+                    }}
+                  />
                 )}
               </div>
 
@@ -202,11 +239,12 @@ export function Sidebar({ onNewConnection }: Props) {
                 <div>
                   {/* Open tab button */}
                   <div
-                    className="flex items-center gap-2 pl-8 pr-3 py-1 cursor-pointer"
+                    className="flex items-center gap-1.5 pl-8 pr-3 py-1 cursor-pointer"
                     style={{ color: "var(--accent-light)", fontSize: 13 }}
                     onClick={() => handleOpenTab(conn)}
                   >
-                    + New query
+                    <Plus size={12} />
+                    New query
                   </div>
 
                   {schema.length === 0 && (
@@ -229,13 +267,21 @@ export function Sidebar({ onNewConnection }: Props) {
                           onClick={() => toggleTable(tableKey)}
                           onDoubleClick={() => openTab(conn.id, conn.name, `SELECT * FROM ${table.table_name} LIMIT 100;`, table.table_name)}
                         >
-                          <span style={{ color: "var(--text-muted)" }}>
-                            {tableExpanded ? "▾" : "▸"}
-                          </span>
-                          <span>
-                            {table.table_type === "view" ? "👁 " : "▤ "}
-                            {table.table_name}
-                          </span>
+                          <ChevronRight
+                            size={10}
+                            style={{
+                              color: "var(--text-muted)",
+                              flexShrink: 0,
+                              transform: tableExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                              transition: "transform 0.15s ease",
+                            }}
+                          />
+                          {table.table_type === "view" ? (
+                            <Eye size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                          ) : (
+                            <Table2 size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                          )}
+                          <span className="truncate">{table.table_name}</span>
                         </div>
                         {tableExpanded &&
                           table.columns.map((col) => (
@@ -268,6 +314,7 @@ export function Sidebar({ onNewConnection }: Props) {
         <div
           className="absolute inset-0 z-30 flex items-end"
           style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) dismissPasswordPrompt(); }}
         >
           <div
             className="w-full p-4 flex flex-col gap-3"
@@ -283,19 +330,24 @@ export function Sidebar({ onNewConnection }: Props) {
               onChange={(e) => setPasswordInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") submitPassword();
-                if (e.key === "Escape") setPasswordPrompt(null);
+                if (e.key === "Escape") dismissPasswordPrompt();
               }}
-              placeholder="Password"
+              placeholder="Password (leave empty if none)"
               className="w-full px-3 py-1.5 rounded text-sm outline-none"
               style={{
                 background: "var(--bg-secondary)",
                 color: "var(--text-primary)",
-                border: "1px solid var(--border)",
+                border: `1px solid ${connectError ? "var(--error)" : "var(--border)"}`,
               }}
             />
+            {connectError && (
+              <p className="text-xs" style={{ color: "var(--error)" }}>
+                {connectError}
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setPasswordPrompt(null)}
+                onClick={dismissPasswordPrompt}
                 className="text-xs px-3 py-1"
                 style={{ color: "var(--text-muted)" }}
               >
@@ -303,10 +355,14 @@ export function Sidebar({ onNewConnection }: Props) {
               </button>
               <button
                 onClick={submitPassword}
+                disabled={connectingId === passwordPrompt.id}
                 className="text-xs px-4 py-1 rounded font-medium"
-                style={{ background: "var(--accent)", color: "#fff" }}
+                style={{
+                  background: connectingId === passwordPrompt.id ? "var(--bg-secondary)" : "var(--accent)",
+                  color: connectingId === passwordPrompt.id ? "var(--text-muted)" : "#fff",
+                }}
               >
-                Connect
+                {connectingId === passwordPrompt.id ? "Connecting…" : "Connect"}
               </button>
             </div>
           </div>

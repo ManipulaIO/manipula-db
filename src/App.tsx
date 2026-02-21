@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X, Loader2, Zap, Plus } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { QueryTab } from "./components/QueryTab";
 import { NewConnectionModal } from "./components/Modals/NewConnectionModal";
@@ -10,6 +11,7 @@ export default function App() {
   const { tabs, activeTabId, closeTab, setActiveTab } = useTabStore();
   const [showNewConn, setShowNewConn] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const isDragging = { current: false };
   const startX = { current: 0 };
   const startW = { current: 0 };
@@ -20,6 +22,7 @@ export default function App() {
 
   const onResizeStart = (e: React.MouseEvent) => {
     isDragging.current = true;
+    setSidebarResizing(true);
     startX.current = e.clientX;
     startW.current = sidebarWidth;
     const move = (ev: MouseEvent) => {
@@ -30,6 +33,7 @@ export default function App() {
     };
     const up = () => {
       isDragging.current = false;
+      setSidebarResizing(false);
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
     };
@@ -74,19 +78,21 @@ export default function App() {
           >
             <span className="truncate flex-1">{tab.label}</span>
             {tab.isLoading && (
-              <span className="animate-spin text-xs" style={{ color: "var(--text-muted)" }}>
-                ⟳
-              </span>
+              <Loader2
+                size={12}
+                className="animate-spin shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
             )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 closeTab(tab.id);
               }}
-              className="text-xs leading-none opacity-50 hover:opacity-100"
+              className="flex items-center justify-center w-4 h-4 rounded opacity-50 hover:opacity-100"
               style={{ color: "var(--text-muted)" }}
             >
-              ✕
+              <X size={12} />
             </button>
           </div>
         ))}
@@ -112,12 +118,7 @@ export default function App() {
 
         {/* Sidebar resize handle */}
         <div
-          className="shrink-0 cursor-col-resize"
-          style={{
-            width: 4,
-            background: "var(--border)",
-            flexShrink: 0,
-          }}
+          className={`resize-handle-col${sidebarResizing ? " is-dragging" : ""}`}
           onMouseDown={onResizeStart}
         />
 
@@ -130,17 +131,18 @@ export default function App() {
               className="flex flex-col items-center justify-center h-full gap-4"
               style={{ color: "var(--text-muted)" }}
             >
-              <div className="text-4xl opacity-30">⚡</div>
+              <Zap size={40} style={{ color: "var(--text-muted)", opacity: 0.3 }} />
               <p className="text-sm">Select a connection and open a query tab</p>
               <button
                 onClick={() => setShowNewConn(true)}
-                className="text-sm px-4 py-2 rounded"
+                className="flex items-center gap-1.5 text-sm px-4 py-2 rounded"
                 style={{
                   background: "var(--accent)",
                   color: "#fff",
                 }}
               >
-                + New Connection
+                <Plus size={14} />
+                New Connection
               </button>
             </div>
           )}
