@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useConnectionStore } from "../../store/connectionStore";
 import { useTabStore } from "../../store/tabStore";
+import { api } from "../../lib/invoke";
 import type { DbConnectionConfig } from "../../types";
 
 interface Props {
@@ -84,12 +85,35 @@ export function Sidebar({ onNewConnection }: Props) {
     });
   };
 
-  const handleConnect = (conn: DbConnectionConfig) => {
+  const handleConnect = async (conn: DbConnectionConfig) => {
     if (isConnected(conn.id)) {
       toggleExpand(conn.id);
       return;
     }
     setConnectError(null);
+
+    // Try to auto-connect using the password saved in the OS keyring
+    let savedPassword: string | undefined;
+    try {
+      savedPassword = await api.getConnectionPassword(conn.id);
+    } catch {
+      // No saved password — fall through to prompt
+    }
+
+    if (savedPassword !== undefined) {
+      setConnectingId(conn.id);
+      try {
+        await connectTo(conn.id, savedPassword);
+        setExpandedIds((prev) => new Set([...prev, conn.id]));
+        setConnectingId(null);
+        return;
+      } catch (e) {
+        // Saved password didn't work — show prompt with the error
+        setConnectError(String(e));
+        setConnectingId(null);
+      }
+    }
+
     setPasswordPrompt({ id: conn.id, name: conn.name });
     setPasswordInput("");
   };
