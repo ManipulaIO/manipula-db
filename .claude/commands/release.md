@@ -42,22 +42,30 @@ Use the Edit tool (not sed/awk) to make the changes.
 
 Re-read both files and confirm the version field in each now matches the new version. If either doesn't match, report the discrepancy and stop.
 
-### 6. Commit the version bump
+### 6. Update Cargo.lock
 
-Stage only the two changed files and create a commit:
+Run the following so Cargo.lock reflects the new version before committing:
 
 ```sh
-git add src-tauri/tauri.conf.json src-tauri/Cargo.toml
+source ~/.cargo/env && cargo generate-lockfile --manifest-path src-tauri/Cargo.toml 2>&1
+```
+
+### 7. Commit the version bump
+
+Stage the two version files and the lockfile, then create a commit:
+
+```sh
+git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
 git commit -m "chore: release v{NEW_VERSION}"
 ```
 
-### 7. Create a git tag
+### 8. Create a git tag
 
 ```sh
 git tag v{NEW_VERSION}
 ```
 
-### 8. Report success
+### 9. Report success
 
 Print a summary like:
 
