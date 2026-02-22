@@ -65,8 +65,7 @@ Print a summary like:
 Released v{NEW_VERSION}
 
 Next steps:
-  source ~/.cargo/env && pnpm tauri build   # production build (.app + .dmg)
-  git push && git push --tags               # push commit + tag to remote
+  git push && git push --tags   # triggers CI release build on GitHub Actions
 ```
 
-Do NOT run the Tauri build automatically — it is slow and the user should trigger it when ready.
+Do NOT run the Tauri build locally — GitHub Actions will build for macOS (universal), Windows, and Linux automatically when the tag is pushed. The release will be created as a draft on GitHub so you can review it before publishing.
