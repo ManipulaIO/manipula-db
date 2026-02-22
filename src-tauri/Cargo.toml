@@ -1,6 +1,6 @@
 [package]
 name = "manipula-db"
-version = "0.2.0"
+version = "0.3.0"
 description = "ManipulaDB — cross-platform database management tool"
 authors = ["you"]
 edition = "2021"
