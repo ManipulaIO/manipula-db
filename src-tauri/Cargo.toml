@@ -1,6 +1,6 @@
 [package]
 name = "manipula-db"
-version = "0.3.1"
+version = "0.3.2"
 description = "ManipulaDB — cross-platform database management tool"
 authors = ["you"]
 edition = "2021"
@@ -19,6 +19,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.8", features = ["runtime-tokio", "any", "postgres", "mysql", "sqlite"] }
 dashmap = "6"
-keyring = "3"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 urlencoding = "2"
