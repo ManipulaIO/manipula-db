@@ -58,7 +58,7 @@ export function QueryTab({ tab }: Props) {
     const move = (ev: MouseEvent) => {
       if (!isDragging.current) return;
       setEditorHeight(
-        Math.max(80, Math.min(600, startH.current + ev.clientY - startY.current))
+        Math.max(80, Math.min(600, startH.current - (ev.clientY - startY.current)))
       );
     };
     const up = () => {
@@ -73,7 +73,40 @@ export function QueryTab({ tab }: Props) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Toolbar */}
+      {/* Results */}
+      <div className="flex-1 overflow-hidden">
+        {tab.error ? (
+          <div className="p-4 overflow-auto h-full">
+            <div
+              className="p-3 rounded text-xs mono"
+              style={{
+                background: "rgba(244, 135, 113, 0.08)",
+                border: "1px solid var(--error)",
+                color: "var(--error)",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.6,
+              }}
+            >
+              <span className="font-semibold not-mono" style={{ fontFamily: "inherit" }}>Error  </span>
+              {tab.error}
+            </div>
+          </div>
+        ) : tab.result ? (
+          <DataTable result={tab.result} />
+        ) : (
+          <div
+            className="flex items-center justify-center h-full text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {tab.isLoading ? "Executing query…" : "Results will appear here"}
+          </div>
+        )}
+      </div>
+
+      {/* Resize handle */}
+      <div className="resize-handle" onMouseDown={onResizeStart} />
+
+      {/* Editor toolbar */}
       <div
         className="flex items-center gap-2 px-3 py-1.5 shrink-0"
         style={{ borderBottom: "1px solid var(--border)" }}
@@ -120,39 +153,6 @@ export function QueryTab({ tab }: Props) {
             automaticLayout: true,
           }}
         />
-      </div>
-
-      {/* Resize handle */}
-      <div className="resize-handle" onMouseDown={onResizeStart} />
-
-      {/* Results */}
-      <div className="flex-1 overflow-hidden">
-        {tab.error ? (
-          <div className="p-4 overflow-auto h-full">
-            <div
-              className="p-3 rounded text-xs mono"
-              style={{
-                background: "rgba(244, 135, 113, 0.08)",
-                border: "1px solid var(--error)",
-                color: "var(--error)",
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.6,
-              }}
-            >
-              <span className="font-semibold not-mono" style={{ fontFamily: "inherit" }}>Error  </span>
-              {tab.error}
-            </div>
-          </div>
-        ) : tab.result ? (
-          <DataTable result={tab.result} />
-        ) : (
-          <div
-            className="flex items-center justify-center h-full text-sm"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {tab.isLoading ? "Executing query…" : "Results will appear here"}
-          </div>
-        )}
       </div>
     </div>
   );
