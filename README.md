@@ -132,6 +132,16 @@ Output is written to `src-tauri/target/release/bundle/`:
 | Windows | `msi/*.msi` and `nsis/*.exe` |
 | Linux | `deb/*.deb`, `rpm/*.rpm`, `appimage/*.AppImage` |
 
+### macOS — first launch (unsigned builds)
+
+If you built the app locally or downloaded a release that isn't notarized, macOS will quarantine the `.app` and refuse to open it. Clear the quarantine flag before launching:
+
+```sh
+xattr -cr /Applications/ManipulaDB.app
+```
+
+`-c` removes all extended attributes (including the `com.apple.quarantine` flag) and `-r` applies it recursively to all files inside the bundle.
+
 ### macOS — code signing & notarization
 
 To distribute outside the App Store, you need an **Apple Developer ID** certificate. Set these environment variables before running `pnpm tauri build`:
