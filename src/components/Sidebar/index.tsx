@@ -289,7 +289,7 @@ export function Sidebar({ onNewConnection }: Props) {
                           className="flex items-center gap-1.5 pl-8 pr-3 py-0.5 cursor-pointer hover:bg-[var(--bg-hover)] select-none"
                           style={{ color: "var(--text-primary)", fontSize: 13 }}
                           onClick={() => toggleTable(tableKey)}
-                          onDoubleClick={() => openTab(conn.id, conn.name, `SELECT * FROM ${table.table_name} LIMIT 100;`, table.table_name)}
+                          onDoubleClick={() => openTab(conn.id, conn.name, `SELECT * FROM ${table.table_name};`, table.table_name)}
                         >
                           <ChevronRight
                             size={10}

@@ -7,6 +7,7 @@ pub struct QueryResult {
     pub rows_affected: Option<u64>,
     pub execution_time_ms: u64,
     pub truncated: bool,
+    pub total_rows: Option<i64>,
 }
 
 #[derive(Serialize, Clone, Debug)]

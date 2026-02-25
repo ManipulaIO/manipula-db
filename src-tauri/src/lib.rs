@@ -6,7 +6,7 @@ use commands::connection::{
     connect_db, delete_connection, disconnect_db, get_connection_password,
     load_connections, save_connection, test_connection,
 };
-use commands::query::{execute_query, fetch_schema};
+use commands::query::{execute_query, execute_query_page, fetch_schema};
 use db::pool_manager::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -26,6 +26,7 @@ pub fn run() {
             delete_connection,
             get_connection_password,
             execute_query,
+            execute_query_page,
             fetch_schema,
         ])
         .run(tauri::generate_context!())

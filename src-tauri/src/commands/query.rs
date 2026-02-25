@@ -202,6 +202,7 @@ pub async fn execute_query(
             rows_affected: None,
             execution_time_ms: elapsed,
             truncated,
+            total_rows: None,
         })
     } else {
         // For non-SELECT, use native PgPool too so DDL/DML works correctly
@@ -218,6 +219,7 @@ pub async fn execute_query(
                     rows_affected: Some(result.rows_affected()),
                     execution_time_ms: elapsed,
                     truncated: false,
+                    total_rows: None,
                 });
             }
         }
@@ -235,6 +237,7 @@ pub async fn execute_query(
             rows_affected: Some(result.rows_affected()),
             execution_time_ms: elapsed,
             truncated: false,
+            total_rows: None,
         })
     }
 }
@@ -267,6 +270,150 @@ async fn execute_query_postgres(
         rows_affected: None,
         execution_time_ms: elapsed,
         truncated,
+        total_rows: None,
+    })
+}
+
+// ── Paginated query ───────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn execute_query_page(
+    connection_id: String,
+    sql: String,
+    page: i64,
+    page_size: i64,
+    state: State<'_, AppState>,
+) -> Result<QueryResult, String> {
+    let (pool, pg_pool, driver) = {
+        let entry = state
+            .connections
+            .get(&connection_id)
+            .ok_or_else(|| "Connection not found. Please reconnect.".to_string())?;
+        (entry.pool.clone(), entry.pg_pool.clone(), entry.driver.clone())
+    };
+
+    // Non-SELECT: run as normal mutation (ignore page/page_size)
+    if !is_select_like(&sql) {
+        let start = Instant::now();
+        if driver == "postgres" {
+            if let Some(pg) = pg_pool {
+                let result = sqlx::query(&sql).execute(&pg).await.map_err(|e| e.to_string())?;
+                let elapsed = start.elapsed().as_millis() as u64;
+                return Ok(QueryResult {
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    rows_affected: Some(result.rows_affected()),
+                    execution_time_ms: elapsed,
+                    truncated: false,
+                    total_rows: None,
+                });
+            }
+        }
+        let result = sqlx::query(&sql).execute(&pool).await.map_err(|e| e.to_string())?;
+        let elapsed = start.elapsed().as_millis() as u64;
+        return Ok(QueryResult {
+            columns: Vec::new(),
+            rows: Vec::new(),
+            rows_affected: Some(result.rows_affected()),
+            execution_time_ms: elapsed,
+            truncated: false,
+            total_rows: None,
+        });
+    }
+
+    // Strip trailing semicolons before wrapping in a subquery
+    let clean_sql = sql.trim().trim_end_matches(';').trim_end();
+    let offset = page * page_size;
+    let page_sql = format!(
+        "SELECT * FROM ({}) AS _pq LIMIT {} OFFSET {}",
+        clean_sql, page_size, offset
+    );
+    let count_sql = format!("SELECT COUNT(*) FROM ({}) AS _pq", clean_sql);
+
+    let start = Instant::now();
+
+    if driver == "postgres" {
+        if let Some(pg) = pg_pool {
+            let total_rows: Option<i64> = sqlx::query(&count_sql)
+                .fetch_one(&pg)
+                .await
+                .ok()
+                .and_then(|row: PgRow| row.try_get::<i64, _>(0).ok());
+
+            return execute_query_page_postgres(&pg, &page_sql, start, total_rows).await;
+        }
+    }
+
+    // Any driver (MySQL / SQLite)
+    let total_rows: Option<i64> = sqlx::query(&count_sql)
+        .fetch_one(&pool)
+        .await
+        .ok()
+        .and_then(|row: AnyRow| row.try_get::<i64, _>(0).ok());
+
+    let fetch_result = sqlx::query(&page_sql).fetch_all(&pool).await;
+    let rows: Vec<AnyRow> = match fetch_result {
+        Ok(rows) => rows,
+        Err(e) => {
+            let err_str = e.to_string();
+            if driver == "mysql" && err_str.contains("Any driver does not support MySql type") {
+                // Fallback: cast the original query and paginate in-memory
+                let all_rows = mysql_type_cast_fallback(&pool, clean_sql)
+                    .await
+                    .map_err(|_| err_str)?;
+                let start_idx = (offset as usize).min(all_rows.len());
+                let end_idx = (start_idx + page_size as usize).min(all_rows.len());
+                all_rows[start_idx..end_idx].to_vec()
+            } else {
+                return Err(err_str);
+            }
+        }
+    };
+
+    let elapsed = start.elapsed().as_millis() as u64;
+    let columns: Vec<String> = if let Some(first) = rows.first() {
+        first.columns().iter().map(|c| c.name().to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    let json_rows: Vec<serde_json::Value> = rows.iter().map(any_row_to_json).collect();
+
+    Ok(QueryResult {
+        columns,
+        rows: json_rows,
+        rows_affected: None,
+        execution_time_ms: elapsed,
+        truncated: false,
+        total_rows,
+    })
+}
+
+async fn execute_query_page_postgres(
+    pg: &sqlx::postgres::PgPool,
+    sql: &str,
+    start: Instant,
+    total_rows: Option<i64>,
+) -> Result<QueryResult, String> {
+    let rows: Vec<PgRow> = sqlx::query(sql)
+        .fetch_all(pg)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let elapsed = start.elapsed().as_millis() as u64;
+    let columns: Vec<String> = if let Some(first) = rows.first() {
+        first.columns().iter().map(|c| c.name().to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    let json_rows: Vec<serde_json::Value> = rows.iter().map(pg_row_to_json).collect();
+
+    Ok(QueryResult {
+        columns,
+        rows: json_rows,
+        rows_affected: None,
+        execution_time_ms: elapsed,
+        truncated: false,
+        total_rows,
     })
 }
 

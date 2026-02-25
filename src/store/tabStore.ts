@@ -12,6 +12,7 @@ interface TabStore {
   setTabResult: (tabId: string, result: QueryResult) => void;
   setTabLoading: (tabId: string, isLoading: boolean) => void;
   setTabError: (tabId: string, error: string | null) => void;
+  setTabPagination: (tabId: string, page: number, pageSize: number, paginationSql: string) => void;
 }
 
 export const useTabStore = create<TabStore>((set) => ({
@@ -29,6 +30,9 @@ export const useTabStore = create<TabStore>((set) => ({
       isLoading: false,
       error: null,
       autoRun: sql !== undefined,
+      page: 0,
+      pageSize: 100,
+      paginationSql: null,
     };
     set((state) => ({ tabs: [...state.tabs, tab], activeTabId: id }));
   },
@@ -68,6 +72,13 @@ export const useTabStore = create<TabStore>((set) => ({
     set((state) => ({
       tabs: state.tabs.map((t) =>
         t.id === tabId ? { ...t, error, isLoading: false } : t
+      ),
+    })),
+
+  setTabPagination: (tabId, page, pageSize, paginationSql) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId ? { ...t, page, pageSize, paginationSql } : t
       ),
     })),
 }));

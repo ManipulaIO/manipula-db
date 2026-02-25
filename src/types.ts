@@ -14,6 +14,7 @@ export interface QueryResult {
   rows_affected: number | null;
   execution_time_ms: number;
   truncated: boolean;
+  total_rows: number | null;
 }
 
 export interface SchemaColumn {
@@ -37,4 +38,7 @@ export interface Tab {
   isLoading: boolean;
   error: string | null;
   autoRun?: boolean;
+  page: number;
+  pageSize: number;
+  paginationSql: string | null;
 }

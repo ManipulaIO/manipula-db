@@ -1,5 +1,5 @@
 import { useRef, useMemo, useState } from "react";
-import { X, Copy, Check, ArrowUp } from "lucide-react";
+import { X, Copy, Check, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,16 +9,20 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type { QueryResult } from "../../types";
 
 interface Props {
   result: QueryResult;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 const ROW_HEIGHT = 28;
+const PAGE_SIZES = [50, 100, 500, 1000];
 
-export function DataTable({ result }: Props) {
+export function DataTable({ result, page, pageSize, onPageChange, onPageSizeChange }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [copied, setCopied] = useState(false);
@@ -31,10 +35,12 @@ export function DataTable({ result }: Props) {
       size: 52,
       enableSorting: false,
       cell: ({ row }) => (
-        <span style={{ color: "var(--text-muted)" }}>{row.index + 1}</span>
+        <span style={{ color: "var(--text-muted)" }}>
+          {page * pageSize + row.index + 1}
+        </span>
       ),
     }),
-    []
+    [page, pageSize]
   );
 
   const dataColumns = useMemo<ColumnDef<Record<string, unknown>>[]>(
@@ -93,22 +99,11 @@ export function DataTable({ result }: Props) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-  const totalSize = virtualizer.getTotalSize();
-
-  const paddingTop =
-    virtualItems.length > 0 ? (virtualItems[0]?.start ?? 0) : 0;
-  const paddingBottom =
-    virtualItems.length > 0
-      ? totalSize - (virtualItems[virtualItems.length - 1]?.end ?? 0)
-      : 0;
+  const totalRows = result.total_rows;
+  const pageCount = totalRows !== null ? Math.max(1, Math.ceil(totalRows / pageSize)) : null;
+  const showPagination = totalRows !== null;
+  const canPrev = page > 0;
+  const canNext = pageCount !== null ? page < pageCount - 1 : rows.length === pageSize;
 
   if (result.columns.length === 0) {
     return (
@@ -135,7 +130,7 @@ export function DataTable({ result }: Props) {
             type="text"
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Filter results…"
+            placeholder="Filter page…"
             className="w-48 px-2 py-0.5 rounded text-xs outline-none"
             style={{
               background: "var(--bg-tertiary)",
@@ -172,7 +167,9 @@ export function DataTable({ result }: Props) {
           className="text-xs ml-auto"
           style={{ color: "var(--text-muted)" }}
         >
-          {rows.length.toLocaleString()} row{rows.length !== 1 ? "s" : ""}
+          {totalRows !== null
+            ? `${totalRows.toLocaleString()} row${totalRows !== 1 ? "s" : ""} total`
+            : `${rows.length.toLocaleString()} row${rows.length !== 1 ? "s" : ""}`}
           {result.truncated && (
             <span style={{ color: "var(--warning)" }}> · truncated at 50,000</span>
           )}
@@ -242,65 +239,144 @@ export function DataTable({ result }: Props) {
           </thead>
 
           <tbody>
-            {paddingTop > 0 && (
-              <tr>
-                <td colSpan={columns.length} style={{ height: paddingTop }} />
+            {rows.map((row, i) => (
+              <tr
+                key={row.id}
+                style={{
+                  height: ROW_HEIGHT,
+                  background:
+                    i % 2 === 0
+                      ? "var(--bg-primary)"
+                      : "var(--bg-secondary)",
+                }}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td
+                    key={cell.id}
+                    className="px-3 text-xs truncate"
+                    style={{
+                      borderRight: "1px solid var(--border)",
+                      borderBottom: "1px solid var(--border)",
+                      maxWidth: cell.column.id === "__row_num__" ? 52 : 300,
+                      height: ROW_HEIGHT,
+                      verticalAlign: "middle",
+                      color: "var(--text-primary)",
+                      textAlign: cell.column.id === "__row_num__" ? "right" : "left",
+                    }}
+                    title={
+                      cell.column.id !== "__row_num__" && cell.getValue() != null
+                        ? String(cell.getValue())
+                        : undefined
+                    }
+                  >
+                    {flexRender(
+                      cell.column.columnDef.cell,
+                      cell.getContext()
+                    )}
+                  </td>
+                ))}
               </tr>
-            )}
-
-            {virtualItems.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              return (
-                <tr
-                  key={row.id}
-                  style={{
-                    height: ROW_HEIGHT,
-                    background:
-                      virtualRow.index % 2 === 0
-                        ? "var(--bg-primary)"
-                        : "var(--bg-secondary)",
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className="px-3 text-xs truncate"
-                      style={{
-                        borderRight: "1px solid var(--border)",
-                        borderBottom: "1px solid var(--border)",
-                        maxWidth: cell.column.id === "__row_num__" ? 52 : 300,
-                        height: ROW_HEIGHT,
-                        verticalAlign: "middle",
-                        color: "var(--text-primary)",
-                        textAlign: cell.column.id === "__row_num__" ? "right" : "left",
-                      }}
-                      title={
-                        cell.column.id !== "__row_num__" && cell.getValue() != null
-                          ? String(cell.getValue())
-                          : undefined
-                      }
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-
-            {paddingBottom > 0 && (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  style={{ height: paddingBottom }}
-                />
-              </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination bar */}
+      {showPagination && (
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 shrink-0 text-xs"
+          style={{
+            borderTop: "1px solid var(--border)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <button
+            onClick={() => onPageChange(0)}
+            disabled={!canPrev}
+            className="px-1.5 py-0.5 rounded disabled:opacity-30"
+            style={{
+              border: "1px solid var(--border)",
+              cursor: canPrev ? "pointer" : "default",
+            }}
+            title="First page"
+          >
+            «
+          </button>
+          <button
+            onClick={() => onPageChange(page - 1)}
+            disabled={!canPrev}
+            className="flex items-center px-1 py-0.5 rounded disabled:opacity-30"
+            style={{
+              border: "1px solid var(--border)",
+              cursor: canPrev ? "pointer" : "default",
+            }}
+            title="Previous page"
+          >
+            <ChevronLeft size={12} />
+          </button>
+
+          <span>
+            Page{" "}
+            <strong style={{ color: "var(--text-primary)" }}>{page + 1}</strong>
+            {pageCount !== null && (
+              <>
+                {" "}of{" "}
+                <strong style={{ color: "var(--text-primary)" }}>
+                  {pageCount.toLocaleString()}
+                </strong>
+              </>
+            )}
+          </span>
+
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={!canNext}
+            className="flex items-center px-1 py-0.5 rounded disabled:opacity-30"
+            style={{
+              border: "1px solid var(--border)",
+              cursor: canNext ? "pointer" : "default",
+            }}
+            title="Next page"
+          >
+            <ChevronRight size={12} />
+          </button>
+          {pageCount !== null && (
+            <button
+              onClick={() => onPageChange(pageCount - 1)}
+              disabled={!canNext}
+              className="px-1.5 py-0.5 rounded disabled:opacity-30"
+              style={{
+                border: "1px solid var(--border)",
+                cursor: canNext ? "pointer" : "default",
+              }}
+              title="Last page"
+            >
+              »
+            </button>
+          )}
+
+          <span className="ml-auto flex items-center gap-1.5">
+            Rows per page:
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="rounded px-1 py-0.5 text-xs outline-none"
+              style={{
+                background: "var(--bg-tertiary)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+            >
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s.toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

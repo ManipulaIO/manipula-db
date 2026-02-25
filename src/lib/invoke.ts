@@ -25,6 +25,9 @@ export const api = {
   executeQuery: (connectionId: string, sql: string) =>
     invoke<QueryResult>("execute_query", { connectionId, sql }),
 
+  executeQueryPage: (connectionId: string, sql: string, page: number, pageSize: number) =>
+    invoke<QueryResult>("execute_query_page", { connectionId, sql, page, pageSize }),
+
   fetchSchema: (connectionId: string) =>
     invoke<SchemaTable[]>("fetch_schema", { connectionId }),
 };

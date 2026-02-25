@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Play, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { DataTable } from "../DataTable";
 import { api } from "../../lib/invoke";
 import { useTabStore } from "../../store/tabStore";
@@ -10,32 +11,69 @@ interface Props {
   tab: Tab;
 }
 
+/** Strip a trailing LIMIT / OFFSET clause so we can count the full result set. */
+function stripLimitOffset(sql: string): string {
+  return sql
+    .trim()
+    .replace(/;$/, "")
+    .trimEnd()
+    .replace(/\s+LIMIT\s+\d+(\s*,\s*\d+|\s+OFFSET\s+\d+)?$/i, "")
+    .trimEnd();
+}
+
+function buildPaginatedSql(baseSql: string, page: number, pageSize: number): string {
+  const offset = page * pageSize;
+  return `${baseSql}\nLIMIT ${pageSize} OFFSET ${offset};`;
+}
+
 export function QueryTab({ tab }: Props) {
-  const { setTabSql, setTabResult, setTabLoading, setTabError } = useTabStore();
+  const { setTabSql, setTabResult, setTabLoading, setTabError, setTabPagination } = useTabStore();
   const [editorHeight, setEditorHeight] = useState(220);
   const isDragging = useRef(false);
   const startY = useRef(0);
   const startH = useRef(0);
 
-  const runQuery = async () => {
-    if (tab.isLoading) return;
-    const sql = tab.sql.trim();
-    if (!sql) return;
+  const runQuery = async (
+    page = 0,
+    pageSize = tab.pageSize,
+    inputSql = tab.sql.trim()
+  ) => {
+    if (!inputSql) return;
+
+    // Strip any user-supplied LIMIT/OFFSET — COUNT needs the full result set
+    const baseSql = stripLimitOffset(inputSql);
+
     setTabLoading(tab.id, true);
     setTabError(tab.id, null);
     try {
-      const result = await api.executeQuery(tab.connectionId, sql);
+      const result = await api.executeQueryPage(tab.connectionId, baseSql, page, pageSize);
       setTabResult(tab.id, result);
+      setTabPagination(tab.id, page, pageSize, baseSql);
+
+      // Reflect the actual paginated query in the editor (SELECT queries only)
+      if (result.columns.length > 0) {
+        setTabSql(tab.id, buildPaginatedSql(baseSql, page, pageSize));
+      }
     } catch (e) {
       setTabError(tab.id, String(e));
     }
+  };
+
+  const goToPage = (newPage: number) => {
+    if (tab.isLoading || !tab.paginationSql) return;
+    runQuery(newPage, tab.pageSize, tab.paginationSql);
+  };
+
+  const changePageSize = (newSize: number) => {
+    if (tab.isLoading || !tab.paginationSql) return;
+    runQuery(0, newSize, tab.paginationSql);
   };
 
   const hasAutoRun = useRef(false);
   useEffect(() => {
     if (tab.autoRun && !hasAutoRun.current) {
       hasAutoRun.current = true;
-      runQuery();
+      runQuery(0, tab.pageSize, tab.sql.trim());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -45,9 +83,7 @@ export function QueryTab({ tab }: Props) {
       id: "manipula.runQuery",
       label: "Run Query",
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-      run: () => {
-        runQuery();
-      },
+      run: () => runQuery(0, tab.pageSize),
     });
   };
 
@@ -92,7 +128,13 @@ export function QueryTab({ tab }: Props) {
             </div>
           </div>
         ) : tab.result ? (
-          <DataTable result={tab.result} />
+          <DataTable
+            result={tab.result}
+            page={tab.page}
+            pageSize={tab.pageSize}
+            onPageChange={goToPage}
+            onPageSizeChange={changePageSize}
+          />
         ) : (
           <div
             className="flex items-center justify-center h-full text-sm"
@@ -112,7 +154,7 @@ export function QueryTab({ tab }: Props) {
         style={{ borderBottom: "1px solid var(--border)" }}
       >
         <button
-          onClick={runQuery}
+          onClick={() => runQuery(0, tab.pageSize)}
           disabled={tab.isLoading}
           className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium"
           style={{
